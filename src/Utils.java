@@ -1,4 +1,6 @@
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Scanner;
@@ -23,5 +25,27 @@ public class Utils {
 
     public static ArrayList<String> fileToLineList(String filePath){
         return fileToLineList(new File(filePath));
+    }
+
+
+    public static ArrayList<String[]> ReadCsvFile(FileReader file) {
+
+        String line = "";
+        String cvsSplitBy = ",";
+
+        ArrayList<String[]> out = new ArrayList<>();
+
+        try (BufferedReader br = new BufferedReader(file)) {
+
+            while ((line = br.readLine()) != null) {
+
+                // use comma as separator
+                out.add(line.split(cvsSplitBy));
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return out;
     }
 }

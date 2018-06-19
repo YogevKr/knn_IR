@@ -1,401 +1,188 @@
-import weka.classifiers.Classifier;
-import weka.core.Capabilities;
-import weka.core.Instance;
-import weka.core.Instances;
+import org.apache.lucene.analysis.StopFilter;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.misc.HighFreqTerms;
+import org.apache.lucene.misc.TermStats;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.*;
+import org.apache.lucene.search.similarities.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BytesRef;
 
-import java.util.PriorityQueue;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-class DistanceCalculator {
 
-    public static double distance(Instance one, Instance two, int p) {
-        return lpDistance(one, two, p);
-    }
 
-    public static double distance(Instance one, Instance two, double threshold, int p) {
-        return efficientLpDistance(one, two, threshold, p);
-    }
 
-    public static double distance(Instance one, Instance two) {
-        return lInfinityDistance(one, two);
-    }
+public class Knn {
 
-    public static double distance(Instance one, Instance two, double threshold) {
-        return efficientLInfinityDistance(one, two, threshold);
-    }
+    public static final int DOC_ID_I = 0;
+    public static final int LABEL_I = 1;
+    public static final int TITLE_I = 2;
+    public static final int TEXT_I = 3;
 
-    /**
-     * Returns the Lp distance between 2 instances.
-     *
-     * @param one
-     * @param two
-     */
-    private static double lpDistance(Instance one, Instance two, int p) {
-        int numOfAttributes = one.numAttributes() - 1;
-        double absoluteValue, powerOfDifference, sum = 0;
+    public static final String DOC_ID = "DOC_ID";
+    public static final String LABEL = "LABEL";
+    public static final String TITLE = "TITLE";
+    public static final String TEXT = "TEXT";
 
-        for (int i = 0; i < numOfAttributes; i++) {
-            powerOfDifference = Math.pow((one.value(i) - two.value(i)), p);
-            absoluteValue = Math.abs(powerOfDifference);
-            sum += absoluteValue;
+
+    private ArrayList<String> m_StopWordList;
+    private StandardAnalyzer m_Analyzer;
+    private Directory m_Index;
+    private IndexWriterConfig m_IndexWriterConfig;
+    private Similarity m_SimilarityMethod;
+
+    public void AddDocsFile(FileReader i_DocsFile) throws IOException {
+
+        ArrayList<String[]> docsFileLines = Utils.ReadCsvFile(i_DocsFile);
+        IndexWriter w = new IndexWriter(m_Index, m_IndexWriterConfig);
+        for (String[] doc : docsFileLines) {
+            addDoc(w, doc);
         }
 
-        return Math.pow(sum, (1 / p));
+        w.close();
     }
 
-    /**
-     * Returns the L infinity distance between 2 instances.
-     *
-     * @param one
-     * @param two
-     * @return
-     */
-    private static double lInfinityDistance(Instance one, Instance two) {
-        int numOfAttributes = one.numAttributes() - 1;
-        double max = 0, different;
-
-        for (int i = 0; i < numOfAttributes; i++) {
-            different = Math.abs(one.value(i) - two.value(i));
-
-            if (different > max) {
-                max = different;
-            }
-        }
-        return max;
+    public void InitStopWords() {
+        m_StopWordList = new ArrayList<>();
     }
 
-    /**
-     * Returns the Lp distance between 2 instances, while using an efficient distance check.
-     *
-     * @param one
-     * @param two
-     * @return
-     */
-    private static double efficientLpDistance(Instance one, Instance two, double threshold, int p) {
-        int numOfAttributes = one.numAttributes() - 1;
-        double absoluteValue, powerOfDifference, sum = 0;
-
-
-        for (int i = 0; i < numOfAttributes; i++) {
-
-            powerOfDifference = Math.pow((one.value(i) - two.value(i)), p);
-            absoluteValue = Math.abs(powerOfDifference);
-            sum += absoluteValue;
-
-            if (sum > threshold) {
-                sum = Double.MAX_VALUE;
-                break;
-            }
-        }
-
-        if (sum != Double.MAX_VALUE) {
-            return sum;
-        } else {
-            return Math.pow(sum, (1 / p));
-        }
+    public void SetStopWords(ArrayList<String> i_termList) {
+        m_StopWordList = i_termList;
     }
 
-    /**
-     * Returns the Lp distance between 2 instances, while using an efficient distance check.
-     *
-     * @param one
-     * @param two
-     * @return
-     */
-    private static double efficientLInfinityDistance(Instance one, Instance two, double threshold) {
-        int numOfAttributes = one.numAttributes() - 1;
-        double max = 0, different;
+    public ArrayList<String> GetMostCommonTerms(int i_n) throws Exception {
+        ArrayList<String> termList = new ArrayList<>();
+        IndexReader reader = DirectoryReader.open(m_Index);
+        TermStats[] terms = HighFreqTerms.getHighFreqTerms(reader, i_n,
+                "docContent", new HighFreqTerms.DocFreqComparator());
 
-        for (int i = 0; i < numOfAttributes; i++) {
-            different = Math.abs(one.value(i) - two.value(i));
+        for (TermStats term : terms) {
+            termList.add(term.termtext.utf8ToString());
+        }
 
-            if (different > max) {
-                max = different;
+        reader.close();
 
-                if (max > threshold) {
-                    max = Double.MAX_VALUE;
+        return termList;
+    }
+
+    public Map<String, Float> GetScoreDocsForQuery(String i_QueryStr) throws IOException, ParseException {
+
+        int hitsPerPage = 20;
+
+        IndexReader reader = DirectoryReader.open(m_Index);
+        IndexSearcher searcher = new IndexSearcher(reader);
+        searcher.setSimilarity(m_SimilarityMethod);
+
+        Query query = new QueryParser("docContent", m_Analyzer).parse(i_QueryStr);
+
+        TopDocs docs = searcher.search(query, hitsPerPage);
+
+        Map<String, Float> docsMap = new HashMap<>();
+
+        for (ScoreDoc doc : docs.scoreDocs) {
+            Document d = searcher.doc(doc.doc);
+            String id = d.get("docID");
+            docsMap.put(id, doc.score);
+
+
+//            if (doc.score < m_Threshold)
+//                break;
+        }
+
+        reader.close();
+
+        return docsMap;
+    }
+
+    public ArrayList<String> GetQueriesFromFile(File i_QueryFile) {
+        ArrayList<String> queryFileLinesRaw = Utils.fileToLineList(i_QueryFile);
+        ArrayList<String> queries = new ArrayList<>();
+        StringBuilder query = null;
+
+        for (String line : queryFileLinesRaw) {
+            if (line.startsWith("*FIND ")) {
+
+                if (query != null) {
+                    queries.add(query.toString());
+                }
+
+                query = new StringBuilder();
+            } else {
+
+                if (query != null) {
+                    query.append(" ");
+                    query.append(line);
                 }
             }
         }
-        return max;
-    }
-}
 
-class Entry implements Comparable<Entry> {
-    private Instance instance;
-    private double distance;
-
-    public Entry(Instance instance, double distance) {
-        this.instance = instance;
-        this.distance = distance;
-    }
-
-    public Instance getInstance() {
-        return this.instance;
-    }
-
-    public double getDistance() {
-        return this.distance;
-    }
-
-    @Override
-    public int compareTo(Entry other) {
-        return Double.compare(other.getDistance(), this.getDistance());
-    }
-}
-
-public class Knn implements Classifier {
-
-    public enum WeightingScheme {Uniform, Weighted}
-
-    public enum LpDistance {
-        One(1), Two(2), Three(3), Infinity(0);
-        private int p;
-
-        LpDistance(int p) {
-            this.p = p;
+        if (query != null && !query.toString().equals("")) {
+            queries.add(query.toString());
         }
 
-        public int getP() {
-            return p;
-        }
+        return queries;
     }
 
-    public enum DistanceCheck {Regular, Efficient}
+    public void SetAnalyzer() {
+        //    Specify the analyzer for tokenizing text.
+        //    The same analyzer should be used for indexing and searching
 
-    private Instances m_TrainingInstances;
-    private Instances m_TrainingInstances_Backup;
-
-
-    private WeightingScheme m_WeightingScheme;
-    private LpDistance m_P;
-    private boolean m_EfficientCheck;
-    private int m_K;
-
-    private long m_AverageCVRunningTime;
-    private long m_TotalCVRunningTime;
-
-
-    @Override
-    /**
-     * Build the knn classifier. In our case, simply stores the given instances for 
-     * later use in the prediction.
-     * @param instances
-     */
-    public void buildClassifier(Instances instances) throws Exception {
-        m_TrainingInstances = instances;
+        m_Analyzer = new StandardAnalyzer(StopFilter.makeStopSet(m_StopWordList));
     }
 
-    public void setUp(WeightingScheme i_WeightingScheme, LpDistance i_p,
-                      DistanceCheck i_DistanceCheck, int k) {
-
-        m_WeightingScheme = i_WeightingScheme;
-        m_P = i_p;
-        m_EfficientCheck = i_DistanceCheck == DistanceCheck.Efficient;
-        m_K = k;
-
+    public void SetIndex() {
+        m_Index = new RAMDirectory();
+        m_IndexWriterConfig = new IndexWriterConfig(m_Analyzer);
     }
 
-    private double distance(Instance one, Instance two) {
-        // Non efficient, p=INF
-        if (m_P == LpDistance.Infinity) {
-            return DistanceCalculator.distance(one, two);
-        }
-        // Non efficient, p!=INF
-        else {
-            return DistanceCalculator.distance(one, two, m_P.getP());
-        }
-    }
+    public void SetRetrievalAlgorithm() {
 
-    private double distance(Instance one, Instance two, double threshold) {
-        // Efficient, p=INF
-        if (m_P == LpDistance.Infinity) {
-            return DistanceCalculator.distance(one, two, threshold);
-        }
-        // Efficient, p!=INF
-        else {
-            return DistanceCalculator.distance(one, two, threshold, m_P.getP());
-        }
-    }
+        m_SimilarityMethod = new SimilarityBase() {
+            @Override
+            protected float score(BasicStats i_basicStats, float i_tf, float i_docLen) {
+                long N = i_basicStats.getNumberOfDocuments();
+                double DFt = i_basicStats.getDocFreq() + 1;
 
-    /**
-     * Returns the knn prediction on the given instance.
-     *
-     * @param instance
-     * @return The instance predicted value.
-     */
-    public double regressionPrediction(Instance instance) {
-        PriorityQueue<Entry> heap = findNearestNeighbors(instance);
+                double idf = Math.log10(N / DFt);
 
-        if (m_WeightingScheme == WeightingScheme.Weighted) {
-            return getWeightedAverageValue(heap);
-        } else {
-            return getAverageValue(heap);
-        }
-    }
-
-    /**
-     * Caclcualtes the average error on a give set of instances.
-     * The average error is the average absolute error between the target value and the predicted
-     * value across all insatnces.
-     *
-     * @param instances
-     * @return
-     */
-    public double calcAvgError(Instances instances) {
-        double sumOfErrors = 0, prediction;
-        Instance currentInstance;
-
-        for (int i = 0; i < instances.numInstances(); i++) {
-            currentInstance = instances.get(i);
-            prediction = regressionPrediction(currentInstance);
-
-            sumOfErrors += Math.abs(prediction - currentInstance.classValue());
-        }
-        return sumOfErrors / instances.numInstances();
-    }
-
-    /**
-     * Calculates the cross validation error, the average error on all folds.
-     *
-     * @param instances    Insances used for the cross validation
-     * @param num_of_folds The number of folds to use.
-     * @return The cross validation error.
-     */
-    public double crossValidationError(Instances instances, int num_of_folds) throws Exception {
-        m_TrainingInstances_Backup = m_TrainingInstances;
-
-        Instances trainingSet, validationSet;
-
-        double errorSum = 0;
-
-        long startTime;
-        long estimatedTime;
-        long sumOfEstimatedTime = 0;
-
-        for (int i = 0; i < num_of_folds; i++) {
-
-            validationSet = instances.testCV(num_of_folds, i);
-            trainingSet = instances.trainCV(num_of_folds, i);
-            m_TrainingInstances = trainingSet;
-
-            startTime = System.nanoTime();
-            errorSum += calcAvgError(validationSet);
-            estimatedTime = System.nanoTime() - startTime;
-
-            sumOfEstimatedTime += estimatedTime;
-        }
-
-        m_TotalCVRunningTime = sumOfEstimatedTime;
-        m_AverageCVRunningTime = sumOfEstimatedTime / num_of_folds;
-
-        m_TrainingInstances = m_TrainingInstances_Backup;
-        return errorSum / num_of_folds;
-    }
-
-    public long getAverageCVRunningTime() {
-        return m_AverageCVRunningTime;
-    }
-
-    public long getTotalCVRunningTime() {
-        return m_TotalCVRunningTime;
-    }
-
-    /**
-     * Finds the k nearest neighbors.
-     *
-     * @param instance
-     */
-    public PriorityQueue<Entry> findNearestNeighbors(Instance instance) {
-        PriorityQueue<Entry> heap = new PriorityQueue<>();
-
-        if (!m_EfficientCheck) {
-            for (int i = 0; i < m_TrainingInstances.numInstances(); i++) {
-                Instance currentInstance = m_TrainingInstances.get(i);
-//                if (!currentInstance.equals(instance)) {
-                    heap.add(new Entry(currentInstance, distance(currentInstance, instance)));
-                    if (heap.size() > m_K) {
-                        heap.poll();
-                    }
-//                }
+                return (float) (1 + Math.log10(i_tf) * idf);
             }
-        } else {
-            for (int i = 0; i < m_TrainingInstances.numInstances(); i++) {
-                Instance currentInstance = m_TrainingInstances.get(i);
-                if (!currentInstance.equals(instance))
-                    if (!heap.isEmpty()) {
-                        heap.add(new Entry(currentInstance, distance(currentInstance, instance, heap.peek().getDistance())));
-                        if (heap.size() > m_K) {
-                            heap.poll();
-                        }
-                    } else {
-                        heap.add(new Entry(currentInstance, distance(currentInstance, instance)));
-                        if (heap.size() > m_K) {
-                            heap.poll();
-                        }
-                    }
+
+            @Override
+            public String toString() {
+                return "TF-IDF";
             }
-        }
-        return heap;
+        };
     }
 
-    /**
-     * Cacluates the average value of the given elements in the collection.
-     *
-     * @param
-     * @return
-     */
-    public double getAverageValue(PriorityQueue<Entry> heap) {
-        double sum = 0;
-        Entry entry;
+    private void addDoc(IndexWriter i_w, String[] i_data) throws IOException {
+        Document doc = new Document();
 
-        while (!heap.isEmpty()) {
-            entry = heap.poll();
-            sum += entry.getInstance().classValue();
-        }
-        return sum / m_K;
-    }
+        doc.add(new TextField(DOC_ID, i_data[DOC_ID_I], Field.Store.YES));
+        doc.add(new TextField(LABEL, i_data[LABEL_I], Field.Store.YES));
+        doc.add(new TextField(TITLE, i_data[TITLE_I], Field.Store.YES));
+        doc.add(new StringField(TEXT, i_data[TEXT_I], Field.Store.YES));
 
-    /**
-     * Calculates the weighted average of the target values of all the elements in the collection
-     * with respect to their distance from a specific instance.
-     *
-     * @return
-     */
-    public double getWeightedAverageValue(PriorityQueue<Entry> heap) {
-        double sumOfOneOverSquaredDistance = 0, sumOfValueDividedSquaredDistance = 0;
-        double distanceSquared, instanceValue;
-        Entry currentEntry;
-
-        while (!heap.isEmpty()) {
-            currentEntry = heap.poll();
-
-            distanceSquared = Math.pow(currentEntry.getDistance(), 2);
-            instanceValue = currentEntry.getInstance().classValue();
-
-            if (distanceSquared != 0) {
-                sumOfValueDividedSquaredDistance += instanceValue / distanceSquared;
-                sumOfOneOverSquaredDistance += 1 / distanceSquared;
-            }
-        }
-        return sumOfValueDividedSquaredDistance / sumOfOneOverSquaredDistance;
+        i_w.addDocument(doc);
     }
 
 
-    @Override
-    public double[] distributionForInstance(Instance arg0) throws Exception {
-        // TODO Auto-generated method stub - You can ignore.
-        return null;
-    }
-
-    @Override
-    public Capabilities getCapabilities() {
-        // TODO Auto-generated method stub - You can ignore.
-        return null;
-    }
-
-    @Override
-    public double classifyInstance(Instance instance) {
-        // TODO Auto-generated method stub - You can ignore.
-        return 0.0;
-    }
 }

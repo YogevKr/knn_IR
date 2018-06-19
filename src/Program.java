@@ -1,8 +1,6 @@
 import org.apache.lucene.queryparser.classic.ParseException;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 
@@ -12,13 +10,13 @@ public class Program {
     private static final double ALPHA = 0.5;
     private static final double BETA = 1;
 
-    private static File m_DocsFile;
-    private static File m_QueryFile;
+    private static FileReader m_TestFile;
+    private static FileReader m_TrainFile;
     private static FileWriter m_OutputFile;
 
     private static String m_WorkingDir;
-    private static String m_RetrievalAlgorithm = "";
-    private static SearchEngine m_SearchEngine;
+    private static String m_K = "";
+    private static Knn m_SearchEngine;
     private static Map<Integer, Map<String, Float>> m_QueriesResults;
     private static Map<Integer, String[]> m_Truth;
 
@@ -32,14 +30,14 @@ public class Program {
 
         initFromParameterFile(args[0]);
 
-        SearchEngine tempEngine = new SearchEngine();
+        Knn tempEngine = new Knn();
         tempEngine.InitStopWords();
         tempEngine.SetAnalyzer();
         tempEngine.SetIndex();
-        tempEngine.AddDocsFile(m_DocsFile);
+        tempEngine.AddDocsFile(m_TrainFile);
 
-        m_SearchEngine = new SearchEngine();
-        m_SearchEngine.SetRetrievalAlgorithm(m_RetrievalAlgorithm);
+        m_SearchEngine = new Knn();
+        m_SearchEngine.SetRetrievalAlgorithm();
         m_SearchEngine.InitStopWords();
         try {
             m_SearchEngine.SetStopWords(tempEngine.GetMostCommonTerms(NUM_OF_STOP_WORDS));
@@ -48,49 +46,22 @@ public class Program {
         }
         m_SearchEngine.SetAnalyzer();
         m_SearchEngine.SetIndex();
-        m_SearchEngine.AddDocsFile(m_DocsFile);
 
         //// Find Best T
 
 //        findBestTForGivenTruth("truth.txt");
 
-
-        executeAllQueries();
-        writeQueriesResultsToFile();
+//        IndexReader reader = DirectoryReader.open(m_SearchEngine.m_Index);
+//        StandardAnalyzer standardAnalyzer = new StandardAnalyzer(StopFilter.makeStopSet(m_SearchEngine.m_StopWordList));
+//
+//        KNearestNeighborClassifier knn = new KNearestNeighborClassifier(reader, m_SearchEngine.m_SimilarityMethod, standardAnalyzer, null, 5, MoreLikeThis.DEFAULT_MIN_DOC_FREQ, MoreLikeThis.DEFAULT_MIN_TERM_FREQ, "docId", "content");
+//
+//        List<ClassificationResult<BytesRef>> test = knn.getClasses("Test");
 
 
 //        parseTheTruth("truth.txt");
 //        runExperiment();
 
-    }
-
-    private static void findBestTForGivenTruth(String i_TruthPath) throws IOException, ParseException {
-
-        parseTheTruth(i_TruthPath);
-
-        double startingThreshold = 0;
-        double maxThreshold = 20;
-        double jump = 0.001;
-
-        double T, bestT = 0, F, bestF = 0;
-
-        T = startingThreshold;
-        while (T <= maxThreshold) {
-            m_SearchEngine.SetThreshold(T);
-            executeAllQueries();
-            F = runExperiment();
-
-            if (F > bestF) {
-                bestF = F;
-                bestT = T;
-            }
-
-            T += jump;
-
-            System.out.println(String.format("T = %f, F = %f", T, F));
-        }
-
-        System.out.println(String.format("Best T = %f, Best F = %f", bestT, bestF));
     }
 
     private static double runExperiment() {
@@ -131,65 +102,22 @@ public class Program {
         return sumOfF / m_Truth.size();
     }
 
-    private static void parseTheTruth(String i_PathToTheTruth) {
-        ArrayList<String> lines = Utils.fileToLineList(i_PathToTheTruth);
-        Map<Integer, String[]> truth = new HashMap<>();
 
-        for (String line : lines) {
-            if (!line.equals("")) {
-                String[] sp = line.split(" +", 2);
-
-                sp[1] = sp[1].replaceAll("424", "");
-                sp[1] = sp[1].replaceAll("425", "");
-
-                truth.put(Integer.parseInt(sp[0]), sp[1].split(" +"));
-            }
-        }
-        m_Truth = truth;
-    }
-
-    private static void executeAllQueries() throws IOException, ParseException {
-        ArrayList<String> queries = m_SearchEngine.GetQueriesFromFile(m_QueryFile);
-        Map<Integer, Map<String, Float>> queriesResults = new HashMap<>();
-
-        for (int i = 0; i < queries.size(); i++) {
-            Map<String, Float> scoreDocs = m_SearchEngine.GetScoreDocsForQuery(queries.get(i));
-            queriesResults.put((i + 1), scoreDocs);
-
-            m_QueriesResults = queriesResults;
-        }
-    }
-
-    private static void writeQueriesResultsToFile() throws IOException {
-
-        ArrayList<Integer> queriesIds = new ArrayList<>(m_QueriesResults.keySet());
-        Collections.sort(queriesIds);
-
-        for (int id : queriesIds) {
-            ArrayList<String> docsList = new ArrayList<>(m_QueriesResults.get(id).keySet());
-            Collections.sort(docsList);
-
-            StringBuilder docsId = new StringBuilder();
-
-            for (String docId : docsList) {
-                docsId.append(docId).append(" ");
-            }
-
-            m_OutputFile.write(id + " " + docsId.toString() + "\n");
-        }
-
-        m_OutputFile.close();
-    }
-
-    private static void initFromParameterFile(String i_parameterFilePath) {
+    private static void initFromParameterFile(String i_parameterFilePath) throws FileNotFoundException {
         ArrayList<String> lines = Utils.fileToLineList(i_parameterFilePath);
 
         for (String line : lines) {
 
-            if (line.startsWith("queryFile=")) {
-                m_QueryFile = new File(line.substring(line.indexOf('=') + 1));
-            } else if ((line.startsWith("docsFile="))) {
-                m_DocsFile = new File(line.substring(line.indexOf('=') + 1));
+//            trainFile=train.csv
+//            testFile=test.csv
+//            outputFile=out/out1.csv
+//            k=20
+
+
+            if (line.startsWith("trainFile=")) {
+                m_TrainFile = new FileReader(line.substring(line.indexOf('=') + 1));
+            } else if ((line.startsWith("testFile="))) {
+                m_TestFile = new FileReader(line.substring(line.indexOf('=') + 1));
             } else if ((line.startsWith("outputFile="))) {
                 try {
                     m_OutputFile = new FileWriter(line.substring(line.indexOf('=') + 1));
@@ -197,16 +125,9 @@ public class Program {
                     e.printStackTrace();
                     System.exit(1);
                 }
-            } else if ((line.startsWith("retrievalAlgorithm="))) {
-                m_RetrievalAlgorithm = line.substring(line.indexOf('=') + 1);
+            } else if ((line.startsWith("k="))) {
+                m_K = line.substring(line.indexOf('=') + 1);
             }
         }
-
-        if (!(m_RetrievalAlgorithm.equals("basic") || m_RetrievalAlgorithm.equals("improved"))) {
-            System.out.println("Invalid Retrieval Algorithm!");
-            System.exit(1);
-        }
     }
-
-
 }
