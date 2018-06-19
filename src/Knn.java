@@ -1,5 +1,7 @@
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.classification.ClassificationResult;
+import org.apache.lucene.classification.KNearestNeighborClassifier;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -23,11 +25,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-
 
 
 public class Knn {
@@ -48,8 +49,25 @@ public class Knn {
     private Directory m_Index;
     private IndexWriterConfig m_IndexWriterConfig;
     private Similarity m_SimilarityMethod;
+    private KNearestNeighborClassifier m_Classifier;
 
-    public void AddDocsFile(FileReader i_DocsFile) throws IOException {
+    public void SetClassifier(int i_K) throws IOException {
+        IndexReader reader = DirectoryReader.open(m_Index);
+
+        m_Classifier = new KNearestNeighborClassifier(reader, m_SimilarityMethod, m_Analyzer, null, i_K,
+                5, 10, LABEL, TITLE, TEXT);
+    }
+
+//    public int Prediction(String[] i_Data) throws IOException {
+    public int Prediction(String i_Data) throws IOException {
+
+        List<ClassificationResult<BytesRef>> test = m_Classifier.getClasses(i_Data);
+        System.out.println(test.get(0).getAssignedClass().utf8ToString());
+
+        return 0;
+    }
+
+    public void AddDocsFile(String i_DocsFile) throws IOException {
 
         ArrayList<String[]> docsFileLines = Utils.ReadCsvFile(i_DocsFile);
         IndexWriter w = new IndexWriter(m_Index, m_IndexWriterConfig);
@@ -72,7 +90,7 @@ public class Knn {
         ArrayList<String> termList = new ArrayList<>();
         IndexReader reader = DirectoryReader.open(m_Index);
         TermStats[] terms = HighFreqTerms.getHighFreqTerms(reader, i_n,
-                "docContent", new HighFreqTerms.DocFreqComparator());
+                TEXT, new HighFreqTerms.DocFreqComparator());
 
         for (TermStats term : terms) {
             termList.add(term.termtext.utf8ToString());
@@ -119,10 +137,10 @@ public class Knn {
     private void addDoc(IndexWriter i_w, String[] i_data) throws IOException {
         Document doc = new Document();
 
-        doc.add(new TextField(DOC_ID, i_data[DOC_ID_I], Field.Store.YES));
-        doc.add(new TextField(LABEL, i_data[LABEL_I], Field.Store.YES));
+        doc.add(new StringField(DOC_ID, i_data[DOC_ID_I], Field.Store.YES));
+        doc.add(new StringField(LABEL, i_data[LABEL_I], Field.Store.YES));
         doc.add(new TextField(TITLE, i_data[TITLE_I], Field.Store.YES));
-        doc.add(new StringField(TEXT, i_data[TEXT_I], Field.Store.YES));
+        doc.add(new TextField(TEXT, i_data[TEXT_I], Field.Store.YES));
 
         i_w.addDocument(doc);
     }

@@ -10,8 +10,8 @@ public class Program {
     private static final double ALPHA = 0.5;
     private static final double BETA = 1;
 
-    private static FileReader m_TestFile;
-    private static FileReader m_TrainFile;
+    private static String m_TestFile;
+    private static String m_TrainFile;
     private static FileWriter m_OutputFile;
 
     private static String m_WorkingDir;
@@ -34,7 +34,7 @@ public class Program {
         tempEngine.InitStopWords();
         tempEngine.SetAnalyzer();
         tempEngine.SetIndex();
-        tempEngine.AddDocsFile(m_TrainFile);
+        tempEngine.AddDocsFile(m_TestFile);
 
         m_SearchEngine = new Knn();
         m_SearchEngine.SetRetrievalAlgorithm();
@@ -46,6 +46,11 @@ public class Program {
         }
         m_SearchEngine.SetAnalyzer();
         m_SearchEngine.SetIndex();
+        m_SearchEngine.AddDocsFile(m_TestFile);
+
+
+        m_SearchEngine.SetClassifier(5);
+        m_SearchEngine.Prediction("Exim Bank is The Export-Import Bank of Romania based in Bucharest.");
 
         //// Find Best T
 
@@ -115,9 +120,9 @@ public class Program {
 
 
             if (line.startsWith("trainFile=")) {
-                m_TrainFile = new FileReader(line.substring(line.indexOf('=') + 1));
+                m_TrainFile = line.substring(line.indexOf('=') + 1);
             } else if ((line.startsWith("testFile="))) {
-                m_TestFile = new FileReader(line.substring(line.indexOf('=') + 1));
+                m_TestFile = line.substring(line.indexOf('=') + 1);
             } else if ((line.startsWith("outputFile="))) {
                 try {
                     m_OutputFile = new FileWriter(line.substring(line.indexOf('=') + 1));

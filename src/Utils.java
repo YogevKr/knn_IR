@@ -28,14 +28,14 @@ public class Utils {
     }
 
 
-    public static ArrayList<String[]> ReadCsvFile(FileReader file) {
+    public static ArrayList<String[]> ReadCsvFile(String filePath) {
 
         String line = "";
         String cvsSplitBy = ",";
 
         ArrayList<String[]> out = new ArrayList<>();
 
-        try (BufferedReader br = new BufferedReader(file)) {
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
 
             while ((line = br.readLine()) != null) {
 
