@@ -83,63 +83,6 @@ public class Knn {
         return termList;
     }
 
-    public Map<String, Float> GetScoreDocsForQuery(String i_QueryStr) throws IOException, ParseException {
-
-        int hitsPerPage = 20;
-
-        IndexReader reader = DirectoryReader.open(m_Index);
-        IndexSearcher searcher = new IndexSearcher(reader);
-        searcher.setSimilarity(m_SimilarityMethod);
-
-        Query query = new QueryParser("docContent", m_Analyzer).parse(i_QueryStr);
-
-        TopDocs docs = searcher.search(query, hitsPerPage);
-
-        Map<String, Float> docsMap = new HashMap<>();
-
-        for (ScoreDoc doc : docs.scoreDocs) {
-            Document d = searcher.doc(doc.doc);
-            String id = d.get("docID");
-            docsMap.put(id, doc.score);
-
-
-//            if (doc.score < m_Threshold)
-//                break;
-        }
-
-        reader.close();
-
-        return docsMap;
-    }
-
-    public ArrayList<String> GetQueriesFromFile(File i_QueryFile) {
-        ArrayList<String> queryFileLinesRaw = Utils.fileToLineList(i_QueryFile);
-        ArrayList<String> queries = new ArrayList<>();
-        StringBuilder query = null;
-
-        for (String line : queryFileLinesRaw) {
-            if (line.startsWith("*FIND ")) {
-
-                if (query != null) {
-                    queries.add(query.toString());
-                }
-
-                query = new StringBuilder();
-            } else {
-
-                if (query != null) {
-                    query.append(" ");
-                    query.append(line);
-                }
-            }
-        }
-
-        if (query != null && !query.toString().equals("")) {
-            queries.add(query.toString());
-        }
-
-        return queries;
-    }
 
     public void SetAnalyzer() {
         //    Specify the analyzer for tokenizing text.
