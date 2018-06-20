@@ -16,7 +16,7 @@ public class Program {
     private static int m_K;
 
 
-    public static void main(String[] args) throws IOException, ParseException {
+    public static void main(String[] args) throws IOException {
 
         if (args.length != 1) {
             System.out.println("Software except exactly one parameter");
@@ -33,28 +33,40 @@ public class Program {
         tempEngine.SetIndex();
         tempEngine.AddDocsFile(dataSet);
 
-        Knn searchEngine = new Knn();
-        searchEngine.SetRetrievalAlgorithm();
-        searchEngine.InitStopWords();
+        Knn knn = new Knn();
+        knn.SetRetrievalAlgorithm();
+        knn.InitStopWords();
         try {
-            searchEngine.SetStopWords(tempEngine.GetMostCommonTerms(NUM_OF_STOP_WORDS));
+            knn.SetStopWords(tempEngine.GetMostCommonTerms(NUM_OF_STOP_WORDS));
         } catch (Exception e) {
             e.printStackTrace();
         }
-        searchEngine.SetAnalyzer();
-        searchEngine.SetIndex();
-        searchEngine.AddDocsFile(dataSet);
+        knn.SetAnalyzer();
+        knn.SetIndex();
+        knn.AddDocsFile(dataSet);
 
+        knn.SetClassifier(m_K);
+        ArrayList<String[]> testSetPrediction = knn.SetPrediction(m_TestFile);
+        System.out.println(String.format("K = %d P = %f", m_K, calculatePrecise(testSetPrediction)));
 
-        for (int i = 5; i < 30; i++) {
-            searchEngine.SetClassifier(m_K);
-            ArrayList<String[]> testSetPrediction = searchEngine.SetPrediction(m_TestFile);
-            System.out.println(String.format("K = %d P = %f", i, calculatePrecise(testSetPrediction)));
+        Utils.ListToCSV(m_OutputFile,testSetPrediction);
+    }
 
+    private int findBestK(int i_min, int i_max, Knn i_knn, String i_TestFile) throws IOException {
+        int bestK = 0;
+        double bestP = 0, p;
+
+        for (int i = i_min; i < i_max; i++) {
+            i_knn.SetClassifier(m_K);
+            ArrayList<String[]> testSetPrediction = i_knn.SetPrediction(i_TestFile);
+            p = calculatePrecise(testSetPrediction);
+            System.out.println(String.format("K = %d P = %f", i, p));
+
+            if (p > bestP){
+                bestK = i;
+            }
         }
-
-//        Utils.ListToCSV(m_OutputFile,testSetPrediction);
-
+        return bestK;
     }
 
     private static double calculatePrecise(ArrayList<String[]> i_TestSetPrediction){
@@ -69,7 +81,7 @@ public class Program {
         return 1 - ((falsePredictions * 1.0) / i_TestSetPrediction.size());
     }
 
-    private static void initFromParameterFile(String i_parameterFilePath) throws FileNotFoundException {
+    private static void initFromParameterFile(String i_parameterFilePath) {
         ArrayList<String> lines = Utils.fileToLineList(i_parameterFilePath);
 
         for (String line : lines) {

@@ -65,10 +65,7 @@ public class Knn {
         Random rand = new Random();
 
         for (String[] doc : docsFileLines){
-            int n = rand.nextInt(100) + 1;
-            if (n < m_trainingSetPercent){
-                results.add(new String[]{doc[DOC_ID_I], Prediction(doc), doc[LABEL_I]});
-            }
+            results.add(new String[]{doc[DOC_ID_I], Prediction(doc), doc[LABEL_I]});
         }
 
         return results;
