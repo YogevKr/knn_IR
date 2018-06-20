@@ -39,7 +39,6 @@ public class Utils {
 
             while ((line = br.readLine()) != null) {
 
-                // use comma as separator
                 out.add(line.split(cvsSplitBy));
             }
 

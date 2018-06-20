@@ -23,10 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -55,24 +52,27 @@ public class Knn {
         IndexReader reader = DirectoryReader.open(m_Index);
 
         m_Classifier = new KNearestNeighborClassifier(reader, m_SimilarityMethod, m_Analyzer, null, i_K,
-                5, 10, LABEL, TITLE, TEXT);
+                1, 1, LABEL, TITLE, TEXT);
     }
 
-//    public int Prediction(String[] i_Data) throws IOException {
-    public int Prediction(String i_Data) throws IOException {
-
-        List<ClassificationResult<BytesRef>> test = m_Classifier.getClasses(i_Data);
-        System.out.println(test.get(0).getAssignedClass().utf8ToString());
-
-        return 0;
+    public String Prediction(String[] i_Data) throws IOException {
+        return m_Classifier.getClasses(i_Data[TEXT_I]).get(0).getAssignedClass().utf8ToString();
     }
 
     public void AddDocsFile(String i_DocsFile) throws IOException {
 
         ArrayList<String[]> docsFileLines = Utils.ReadCsvFile(i_DocsFile);
         IndexWriter w = new IndexWriter(m_Index, m_IndexWriterConfig);
+        Random rand = new Random();
+
+        ArrayList<String[]> docs = new ArrayList<>();
+
         for (String[] doc : docsFileLines) {
-            addDoc(w, doc);
+            int n = rand.nextInt(100) + 1;
+                if (n < 2){
+                    addDoc(w, doc);
+                    docs.add(doc);
+                }
         }
 
         w.close();

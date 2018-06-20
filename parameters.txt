@@ -1,5 +1,5 @@
 trainFile=train.csv
-testFile=t.csv
+testFile=test.csv
 outputFile=out/out1.csv 
 k=20 
 

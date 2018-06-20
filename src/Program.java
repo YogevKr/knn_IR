@@ -27,14 +27,16 @@ public class Program {
             System.out.println("Software except exactly one parameter");
             System.exit(1);
         }
-
         initFromParameterFile(args[0]);
+
+        // Choose Data Set:
+        String dataSet = m_TrainFile;
 
         Knn tempEngine = new Knn();
         tempEngine.InitStopWords();
         tempEngine.SetAnalyzer();
         tempEngine.SetIndex();
-        tempEngine.AddDocsFile(m_TestFile);
+        tempEngine.AddDocsFile(dataSet);
 
         m_SearchEngine = new Knn();
         m_SearchEngine.SetRetrievalAlgorithm();
@@ -46,11 +48,11 @@ public class Program {
         }
         m_SearchEngine.SetAnalyzer();
         m_SearchEngine.SetIndex();
-        m_SearchEngine.AddDocsFile(m_TestFile);
+        m_SearchEngine.AddDocsFile(dataSet);
 
 
-        m_SearchEngine.SetClassifier(5);
-        m_SearchEngine.Prediction("Exim Bank is The Export-Import Bank of Romania based in Bucharest.");
+        m_SearchEngine.SetClassifier(20);
+//        m_SearchEngine.Prediction("Sometimes the Magic Works: Lessons from a Writing Life is a book by Terry Brooks. First published in 2003 it seeks to give advice to aspiring writers often telling some of the stories behind Brooks' own literature as an example.");
 
         //// Find Best T
 
