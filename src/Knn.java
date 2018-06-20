@@ -40,7 +40,7 @@ public class Knn {
     public static final String TITLE = "TITLE";
     public static final String TEXT = "TEXT";
 
-    private int m_trainingSetPercent = 10;
+    private int m_trainingSetPercent = 20;
     private ArrayList<String> m_StopWordList;
     private StandardAnalyzer m_Analyzer;
     private Directory m_Index;
@@ -62,9 +62,13 @@ public class Knn {
     public ArrayList<String[]> SetPrediction(String i_DataSet) throws IOException {
         ArrayList<String[]> docsFileLines = Utils.ReadCsvFile(i_DataSet);
         ArrayList<String[]> results = new ArrayList<>();
+        Random rand = new Random();
 
         for (String[] doc : docsFileLines){
-            results.add(new String[]{doc[DOC_ID_I], Prediction(doc)});
+            int n = rand.nextInt(100) + 1;
+            if (n < m_trainingSetPercent){
+                results.add(new String[]{doc[DOC_ID_I], Prediction(doc), doc[LABEL_I]});
+            }
         }
 
         return results;
