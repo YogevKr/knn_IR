@@ -40,7 +40,7 @@ public class Knn {
     public static final String TITLE = "TITLE";
     public static final String TEXT = "TEXT";
 
-
+    private int m_trainingSetPercent = 10;
     private ArrayList<String> m_StopWordList;
     private StandardAnalyzer m_Analyzer;
     private Directory m_Index;
@@ -59,20 +59,28 @@ public class Knn {
         return m_Classifier.getClasses(i_Data[TEXT_I]).get(0).getAssignedClass().utf8ToString();
     }
 
+    public ArrayList<String[]> SetPrediction(String i_DataSet) throws IOException {
+        ArrayList<String[]> docsFileLines = Utils.ReadCsvFile(i_DataSet);
+        ArrayList<String[]> results = new ArrayList<>();
+
+        for (String[] doc : docsFileLines){
+            results.add(new String[]{doc[DOC_ID_I], Prediction(doc)});
+        }
+
+        return results;
+    }
+
     public void AddDocsFile(String i_DocsFile) throws IOException {
 
         ArrayList<String[]> docsFileLines = Utils.ReadCsvFile(i_DocsFile);
         IndexWriter w = new IndexWriter(m_Index, m_IndexWriterConfig);
         Random rand = new Random();
 
-        ArrayList<String[]> docs = new ArrayList<>();
-
         for (String[] doc : docsFileLines) {
             int n = rand.nextInt(100) + 1;
-                if (n < 2){
-                    addDoc(w, doc);
-                    docs.add(doc);
-                }
+            if (n < m_trainingSetPercent){
+                addDoc(w, doc);
+            }
         }
 
         w.close();
