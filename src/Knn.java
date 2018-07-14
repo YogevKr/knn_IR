@@ -40,7 +40,7 @@ public class Knn {
     public static final String TITLE = "TITLE";
     public static final String TEXT = "TEXT";
 
-    private int m_trainingSetPercent = 20;
+    private int m_trainingSetPercent = 10;
     private ArrayList<String> m_StopWordList;
     private StandardAnalyzer m_Analyzer;
     private Directory m_Index;
@@ -65,7 +65,10 @@ public class Knn {
         Random rand = new Random();
 
         for (String[] doc : docsFileLines){
-            results.add(new String[]{doc[DOC_ID_I], Prediction(doc), doc[LABEL_I]});
+            int n = rand.nextInt(100) + 1;
+            if (n < m_trainingSetPercent) {
+                results.add(new String[]{doc[DOC_ID_I], Prediction(doc), doc[LABEL_I]});
+            }
         }
 
         return results;
@@ -153,6 +156,4 @@ public class Knn {
 
         i_w.addDocument(doc);
     }
-
-
 }

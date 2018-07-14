@@ -52,7 +52,7 @@ public class Program {
         Utils.ListToCSV(m_OutputFile,testSetPrediction);
     }
 
-    private int findBestK(int i_min, int i_max, Knn i_knn, String i_TestFile) throws IOException {
+    private static int findBestK(int i_min, int i_max, Knn i_knn, String i_TestFile) throws IOException {
         int bestK = 0;
         double bestP = 0, p;
 
@@ -64,6 +64,7 @@ public class Program {
 
             if (p > bestP){
                 bestK = i;
+                bestP = p;
             }
         }
         return bestK;
