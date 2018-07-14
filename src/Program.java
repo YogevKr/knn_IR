@@ -57,7 +57,7 @@ public class Program {
         double bestP = 0, p;
 
         for (int i = i_min; i < i_max; i++) {
-            i_knn.SetClassifier(m_K);
+            i_knn.SetClassifier(i);
             ArrayList<String[]> testSetPrediction = i_knn.SetPrediction(i_TestFile);
             p = calculatePrecise(testSetPrediction);
             System.out.println(String.format("K = %d P = %f", i, p));
